@@ -1,0 +1,211 @@
+/* Main sidebar */
+.sidebar {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    background-color: #f0f4f9;
+    padding: 25px 15px;
+    box-sizing: border-box;
+    transition: width 0.3s ease;
+}
+
+/* Recent conversations */
+.sidebar .recent {
+    display: flex;
+    flex-direction: column;
+    animation: fadeIn 0.5s ease;
+    min-width: 0;
+}
+
+.sidebar .recent-title {
+    margin-top: 30px;
+    margin-bottom: 20px;
+}
+
+.sidebar .recent-entry {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 50px;
+    color: #282828;
+    cursor: pointer;
+    min-width: 0;
+}
+
+.sidebar img {
+    width: 20px;
+    flex-shrink: 0;
+}
+
+.sidebar .menu {
+    display: block;
+    margin-left: 10px;
+    cursor: pointer;
+}
+
+.sidebar .new-chat {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 15px;
+    font-size: 14px;
+    background-color: #e6eaf1;
+    margin-top: 5px;
+    color: grey;
+    cursor: pointer;
+    border-radius: 50px;
+}
+
+.sidebar .recent-entry:hover {
+    background-color: #e2e6eb;
+}
+
+/* Conversation title */
+.sidebar .recent-entry p {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    margin: 0;
+}
+
+/* Delete conversation button */
+.delete-chat {
+    margin-left: auto;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 50%;
+    font-size: 14px;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.2s ease, background 0.2s ease;
+}
+
+/* Show delete button when hovering over a conversation */
+.recent-entry:hover .delete-chat,
+.delete-chat:focus-visible {
+    opacity: 1;
+}
+
+.delete-chat:hover {
+    background: #e5e5e5;
+}
+
+/* Bottom sidebar items */
+.sidebar .bottom-item {
+    margin-bottom: 5px;
+}
+
+/* Fade-in animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* Tablets and smaller laptops */
+@media (max-width: 768px) {
+    .sidebar {
+        padding: 20px 10px;
+    }
+
+    .sidebar .recent-entry {
+        gap: 8px;
+        padding: 9px;
+    }
+
+    .sidebar .new-chat {
+        padding: 10px;
+    }
+}
+
+/* Mobile phones */
+@media (max-width: 500px) {
+    .sidebar {
+        padding: 15px 8px;
+        min-height: 100vh;
+    }
+
+    .sidebar .menu {
+        margin-left: 5px;
+    }
+
+    .sidebar .recent-title {
+        margin-top: 20px;
+        margin-bottom: 12px;
+    }
+
+    .sidebar .recent-entry {
+        gap: 6px;
+        padding: 8px;
+        border-radius: 12px;
+    }
+
+    .sidebar .new-chat {
+        gap: 8px;
+        padding: 9px;
+        font-size: 13px;
+    }
+
+    /* Keep the delete button visible on touchscreens */
+    .delete-chat {
+        opacity: 1;
+        padding: 6px;
+    }
+}
+/* SIDEBAR USABILITY IMPROVEMENTS */
+
+/* Keep long conversation titles from pushing the delete button away */
+.sidebar .recent-entry {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Allow long conversation history to scroll */
+.sidebar .recent {
+    max-height: calc(100vh - 220px);
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* Make keyboard navigation visible */
+.sidebar .recent-entry:focus-visible,
+.sidebar .delete-chat:focus-visible,
+.sidebar .new-chat:focus-visible {
+    outline: 2px solid #4b90ff;
+    outline-offset: 2px;
+}
+
+/* Give the delete button a comfortable click target */
+.sidebar .delete-chat {
+    min-width: 32px;
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Improve touch interaction on mobile */
+@media (max-width: 500px) {
+    .sidebar .recent {
+        max-height: calc(100dvh - 180px);
+    }
+
+    .sidebar .recent-entry {
+        min-height: 42px;
+    }
+
+    .sidebar .delete-chat {
+        min-width: 36px;
+        min-height: 36px;
+    }
+}
