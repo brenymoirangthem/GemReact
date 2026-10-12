@@ -1,11 +1,12 @@
 import { createContext, useState, useEffect } from "react";
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_BASE_URL = import.meta.env.VITE_API_URL || "https://gemin-a6am.onrender.com";
 export const Context = createContext();
 
 const ContextProvider = (props) => {
     const [prevPrompts, setPrevPrompts] = useState([]);
     const [recentPrompt, setRecentPrompt] = useState("");
     const [showResult, setShowResult] = useState(false);
+
     const [loading, setLoading] = useState(false);
     const [resultData, setResultData] = useState("");
     const [input, setInput] = useState("");
@@ -21,7 +22,7 @@ const ContextProvider = (props) => {
 
         try {
             const response = await fetch(
-                "http://localhost:5000/api/conversations"
+                "https://gemin-a6am.onrender.com/api/conversations"
             );
 
             if (!response.ok) {
@@ -81,7 +82,7 @@ const ContextProvider = (props) => {
 
         try {
             const response = await fetch(
-                "http://localhost:5000/api/chat",
+                "https://gemin-a6am.onrender.com/api/chat",
                 {
                     method: "POST",
                     headers: {
@@ -159,7 +160,7 @@ const ContextProvider = (props) => {
 
         try {
             const response = await fetch(
-                `http://localhost:5000/api/conversations/${conversation._id}/messages`
+                `https://gemin-a6am.onrender.com/api/conversations/${conversation._id}/messages`
             );
 
             const data = await response.json();
@@ -203,7 +204,7 @@ const deleteConversation = async (conversationId) => {
 
     try {
         const response = await fetch(
-            `http://localhost:5000/api/conversations/${conversationId}`,
+            `https://gemin-a6am.onrender.com/api/conversations/${conversationId}`,
             {
                 method: "DELETE",
             }
