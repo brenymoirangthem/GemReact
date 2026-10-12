@@ -1,13 +1,19 @@
 {
-  "name": "server",
+  "name": "gemreact-server",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Express backend for the GemReact AI chat application",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "dev": "node --watch server.js"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "react",
+    "express",
+    "gemini",
+    "mongodb",
+    "ai-chat"
+  ],
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {

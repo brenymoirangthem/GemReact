@@ -1,5 +1,5 @@
 import { createContext, useState, useEffect } from "react";
-
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 export const Context = createContext();
 
 const ContextProvider = (props) => {
@@ -263,6 +263,8 @@ const deleteConversation = async (conversationId) => {
         setLoading(false);
         setInput("");
     };
+
+    
 
     const contextvalue = {
         prevPrompts,
