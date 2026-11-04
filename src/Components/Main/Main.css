@@ -29,7 +29,7 @@
 /* MAIN CONTENT */
 .main-container {
     width: 100%;
-    max-width: 900px;
+    max-width: none;
     margin: 0 auto;
     flex: 1;
     min-height: 0;
@@ -93,7 +93,7 @@
 /* SEARCH AREA */
 .main-bottom {
     width: 100%;
-    max-width: 900px;
+    max-width: none;
     margin: 0 auto 20px;
     padding: 0 20px;
     box-sizing: border-box;

@@ -1,5 +1,7 @@
 import { createContext, useState, useEffect } from "react";
-const API_BASE_URL = import.meta.env.VITE_API_URL || "https://gemin-a6am.onrender.com";
+
+const API_BASE_URL = "http://localhost:5000";
+
 export const Context = createContext();
 
 const ContextProvider = (props) => {
@@ -16,13 +18,13 @@ const ContextProvider = (props) => {
     const [currentConversationId, setCurrentConversationId] = useState(null);
     const [currentMessages, setCurrentMessages] = useState([]);
 
-    // Fetch the conversation list when the app loads
+    // Fetch conversation history
     const fetchChatHistory = async () => {
         setHistoryLoading(true);
 
         try {
             const response = await fetch(
-                "https://gemin-a6am.onrender.com/api/conversations"
+                `${API_BASE_URL}/api/conversations`
             );
 
             if (!response.ok) {
@@ -32,7 +34,9 @@ const ContextProvider = (props) => {
             const data = await response.json();
 
             setChatHistory(data);
-            setPrevPrompts(data.map((conversation) => conversation.title));
+            setPrevPrompts(
+                data.map((conversation) => conversation.title)
+            );
         } catch (error) {
             console.error("Error loading conversations:", error);
         } finally {
@@ -43,13 +47,6 @@ const ContextProvider = (props) => {
     useEffect(() => {
         fetchChatHistory();
     }, []);
-
-    // Display the answer one word at a time
-    const delayPara = (index, nextWord) => {
-        setTimeout(() => {
-            setResultData((prev) => prev + nextWord);
-        }, index * 35);
-    };
 
     // Format the answer for the existing result display
     const formatAnswer = (answer) => {
@@ -67,7 +64,7 @@ const ContextProvider = (props) => {
         return formattedResponse.split("*").join("<br/>");
     };
 
-    // Send a prompt to Gemini through the backend
+    // Send a message using real-time streaming
     const onSent = async (prompt) => {
         if (typeof prompt !== "string" || !prompt.trim() || loading) {
             return;
@@ -80,9 +77,13 @@ const ContextProvider = (props) => {
         setLoading(true);
         setShowResult(true);
 
+        let streamedAnswer = "";
+        let completed = false;
+
         try {
+            // Send request to streaming endpoint
             const response = await fetch(
-                "https://gemin-a6am.onrender.com/api/chat",
+                `${API_BASE_URL}/api/chat/stream`,
                 {
                     method: "POST",
                     headers: {
@@ -95,61 +96,161 @@ const ContextProvider = (props) => {
                 }
             );
 
-            const data = await response.json();
-
             if (!response.ok) {
+                const errorData = await response.json();
+
                 throw new Error(
-                    data.error || "Failed to generate an answer."
+                    errorData.error || "Failed to generate an answer."
                 );
             }
 
-            if (typeof data.answer !== "string") {
-                throw new Error("The backend returned an invalid answer.");
+            if (!response.body) {
+                throw new Error("Streaming is not supported by this browser.");
             }
 
-            // Store the conversation ID returned by the backend
-            setCurrentConversationId(data.conversationId);
+            // Create a reader for the streaming response
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
 
-            // Store the current message and response
-            const savedMessage = {
-                _id: data.id,
-                conversationId: data.conversationId,
-                userMessage: data.message,
-                aiResponse: data.answer,
-                createdAt: data.createdAt,
-            };
+            let buffer = "";
+            let conversationData = null;
 
-            setCurrentMessages((previous) => [...previous, savedMessage]);
+            // Read incoming chunks continuously
+            while (true) {
+                const { value, done } = await reader.read();
 
-            // Display the answer gradually
-            const formattedAnswer = formatAnswer(data.answer);
-            const words = formattedAnswer.split(" ");
+                if (done) {
+                    break;
+                }
 
-            words.forEach((word, index) => {
-                delayPara(index, word + " ");
-            });
+                buffer += decoder.decode(value, {
+                    stream: true,
+                });
 
-            // Refresh the sidebar with the latest conversations
+                // NDJSON sends one JSON object per line
+                const lines = buffer.split("\n");
+
+                // Keep incomplete data for the next read
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (!line.trim()) {
+                        continue;
+                    }
+
+                    const event = JSON.parse(line);
+
+                    // Receive conversation information
+                    if (event.type === "meta") {
+                        conversationData = event;
+
+                        setCurrentConversationId(
+                            event.conversationId
+                        );
+                    }
+
+                    // Receive and display response chunks
+                    else if (event.type === "chunk") {
+                        streamedAnswer += event.text;
+
+                        setResultData(
+                            formatAnswer(streamedAnswer)
+                        );
+                    }
+
+                    // Response completed and saved
+                    else if (event.type === "done") {
+                        completed = true;
+
+                        const savedMessage = {
+                            _id: event.id,
+                            conversationId: event.conversationId,
+                            userMessage: event.message,
+                            aiResponse: streamedAnswer,
+                            createdAt: event.createdAt,
+                        };
+
+                        setCurrentConversationId(
+                            event.conversationId
+                        );
+
+                        setCurrentMessages((previous) => [
+                            ...previous,
+                            savedMessage,
+                        ]);
+                    }
+
+                    // Backend reported an error
+                    else if (event.type === "error") {
+                        throw new Error(
+                            event.error || "Streaming failed."
+                        );
+                    }
+                }
+            }
+
+            // Process any remaining data
+            buffer += decoder.decode();
+
+            if (buffer.trim()) {
+                const event = JSON.parse(buffer);
+
+                if (event.type === "chunk") {
+                    streamedAnswer += event.text;
+
+                    setResultData(
+                        formatAnswer(streamedAnswer)
+                    );
+                } else if (event.type === "done") {
+                    completed = true;
+
+                    const savedMessage = {
+                        _id: event.id,
+                        conversationId: event.conversationId,
+                        userMessage: event.message,
+                        aiResponse: streamedAnswer,
+                        createdAt: event.createdAt,
+                    };
+
+                    setCurrentConversationId(
+                        event.conversationId
+                    );
+
+                    setCurrentMessages((previous) => [
+                        ...previous,
+                        savedMessage,
+                    ]);
+                } else if (event.type === "error") {
+                    throw new Error(event.error);
+                }
+            }
+
+            if (!completed) {
+                throw new Error(
+                    "The streaming connection ended before completion."
+                );
+            }
+
+            // Refresh conversation sidebar
             await fetchChatHistory();
-        } catch (error) {
-    console.error("Frontend chat error:", error);
 
-    if (error instanceof TypeError) {
-        setResultData(
-            "Unable to connect to the backend. Please make sure the GemReact server is running and try again."
-        );
-    } else {
-        setResultData(
-            error.message || "Something went wrong. Please try again."
-        );
-    }
-} finally {
+        } catch (error) {
+            console.error("Frontend streaming error:", error);
+
+            setResultData(
+                streamedAnswer
+                    ? formatAnswer(streamedAnswer) +
+                      "<br/><br/>Connection interrupted. Please try again."
+                    : error.message ||
+                      "Unable to generate a response. Please try again."
+            );
+        } finally {
             setLoading(false);
             setInput("");
         }
     };
 
-    // Load a complete conversation from MongoDB
+    // Load an existing conversation
     const loadChat = async (conversation) => {
         if (!conversation?._id) {
             console.error("Invalid conversation selected.");
@@ -160,7 +261,7 @@ const ContextProvider = (props) => {
 
         try {
             const response = await fetch(
-                `https://gemin-a6am.onrender.com/api/conversations/${conversation._id}/messages`
+                `${API_BASE_URL}/api/conversations/${conversation._id}/messages`
             );
 
             const data = await response.json();
@@ -179,7 +280,11 @@ const ContextProvider = (props) => {
                     data.messages[data.messages.length - 1];
 
                 setRecentPrompt(latestMessage.userMessage);
-                setResultData(formatAnswer(latestMessage.aiResponse));
+
+                setResultData(
+                    formatAnswer(latestMessage.aiResponse)
+                );
+
                 setShowResult(true);
             } else {
                 setRecentPrompt("");
@@ -188,6 +293,7 @@ const ContextProvider = (props) => {
             }
 
             setInput("");
+
         } catch (error) {
             console.error("Error loading conversation:", error);
         } finally {
@@ -196,63 +302,66 @@ const ContextProvider = (props) => {
     };
 
     // Delete a conversation
-const deleteConversation = async (conversationId) => {
-    if (!conversationId) {
-        console.error("Invalid conversation ID.");
-        return false;
-    }
+    const deleteConversation = async (conversationId) => {
+        if (!conversationId) {
+            console.error("Invalid conversation ID.");
+            return false;
+        }
 
-    try {
-        const response = await fetch(
-            `https://gemin-a6am.onrender.com/api/conversations/${conversationId}`,
-            {
-                method: "DELETE",
-            }
-        );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(
-                data.error || "Failed to delete conversation."
+        try {
+            const response = await fetch(
+                `${API_BASE_URL}/api/conversations/${conversationId}`,
+                {
+                    method: "DELETE",
+                }
             );
-        }
 
-        // Remove the deleted conversation from the sidebar
-        setChatHistory((previous) =>
-            previous.filter(
-                (conversation) => conversation._id !== conversationId
-            )
-        );
+            const data = await response.json();
 
-        // Update the list of previous prompts
-        setPrevPrompts((previous) =>
-            previous.filter((prompt) => {
-                return !chatHistory.some(
-                    (conversation) =>
-                        conversation._id === conversationId &&
-                        conversation.title === prompt
+            if (!response.ok) {
+                throw new Error(
+                    data.error || "Failed to delete conversation."
                 );
-            })
-        );
+            }
 
-        // Clear the current chat if the deleted conversation is open
-        if (currentConversationId === conversationId) {
-            setCurrentConversationId(null);
-            setCurrentMessages([]);
-            setRecentPrompt("");
-            setResultData("");
-            setShowResult(false);
-            setInput("");
+            // Remove conversation from sidebar
+            setChatHistory((previous) =>
+                previous.filter(
+                    (conversation) =>
+                        conversation._id !== conversationId
+                )
+            );
+
+            // Update previous prompts
+            setPrevPrompts((previous) =>
+                previous.filter((prompt) => {
+                    return !chatHistory.some(
+                        (conversation) =>
+                            conversation._id === conversationId &&
+                            conversation.title === prompt
+                    );
+                })
+            );
+
+            // Clear current chat if deleted
+            if (currentConversationId === conversationId) {
+                setCurrentConversationId(null);
+                setCurrentMessages([]);
+                setRecentPrompt("");
+                setResultData("");
+                setShowResult(false);
+                setInput("");
+            }
+
+            console.log("Conversation deleted successfully.");
+
+            return true;
+
+        } catch (error) {
+            console.error("Delete conversation error:", error);
+            return false;
         }
-
-        console.log("Conversation deleted successfully.");
-        return true;
-    } catch (error) {
-        console.error("Delete conversation error:", error);
-        return false;
-    }
-};
+    };
 
     // Start a new conversation
     const newChat = () => {
@@ -264,8 +373,6 @@ const deleteConversation = async (conversationId) => {
         setLoading(false);
         setInput("");
     };
-
-    
 
     const contextvalue = {
         prevPrompts,

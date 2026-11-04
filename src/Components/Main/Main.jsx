@@ -142,31 +142,39 @@ const Main = () => {
                             </React.Fragment>
                         ))}
 
-                        {/* Display the latest response while generating */}
-                        {loading && (
-                            <>
-                                <div className="result-title">
-                                    <img
-                                        src={assets.message_icon}
-                                        alt="User"
-                                    />
-                                    <p>{recentPrompt}</p>
-                                </div>
+                       {/* Display the latest response while generating */}
+{loading && (
+    <>
+        <div className="result-title">
+            <img
+                src={assets.message_icon}
+                alt="User"
+            />
+            <p>{recentPrompt}</p>
+        </div>
 
-                                <div className="result-data">
-                                    <img
-                                        src={assets.gemini_icon}
-                                        alt="Gemini"
-                                    />
+        <div className="result-data">
+            <img
+                src={assets.gemini_icon}
+                alt="Gemini"
+            />
 
-                                    <div className="loader">
-                                        <hr />
-                                        <hr />
-                                        <hr />
-                                    </div>
-                                </div>
-                            </>
-                        )}
+            {resultData ? (
+                <p
+                    dangerouslySetInnerHTML={{
+                        __html: resultData,
+                    }}
+                />
+            ) : (
+                <div className="loader">
+                    <hr />
+                    <hr />
+                    <hr />
+                </div>
+            )}
+        </div>
+    </>
+)}
 
                         {/* Display the latest response after generation */}
                         {!loading &&
