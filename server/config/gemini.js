@@ -19,23 +19,47 @@ function getAIClient() {
 
 // Generate mock response
 async function generateMockResponse(contents) {
-    await new Promise(resolve => setTimeout(resolve, 1000));
+await new Promise(resolve => setTimeout(resolve, 1000));
 
-    const prompt = typeof contents === "string"
+
+let text = "";
+let imageCount = 0;
+
+if (typeof contents === "string") {
+    text = contents;
+} else {
+    const contentArray = Array.isArray(contents)
         ? contents
-        : JSON.stringify(contents);
+        : [contents];
 
-    return `🤖 [MOCK AI MODE]
+    for (const content of contentArray) {
+        for (const part of content.parts || []) {
+            if (part.text) {
+                text += part.text + "\n";
+            }
+
+            if (part.inlineData) {
+                imageCount++;
+            }
+        }
+    }
+}
+
+return `🤖 [MOCK AI MODE]
+
 
 Hello! I'm GemReact's development assistant.
 
-I received your message successfully.
+I received your request successfully.
 
 Your message:
-${prompt.slice(-300)}
+${text.slice(-300)}
+
+Images received: ${imageCount}
 
 This is a simulated response. Gemini API is disabled in mock mode.`;
 }
+
 
 // Normal AI response
 async function generateResponse(contents, options = {}) {
@@ -46,15 +70,18 @@ async function generateResponse(contents, options = {}) {
 
         const client = getAIClient();
 
+        // Advanced model configuration
         const config = {
             temperature: options.temperature ?? 0.7,
             topP: options.topP ?? 0.95,
+            topK: options.topK ?? 40,
             maxOutputTokens: options.maxOutputTokens ?? 2048,
         };
 
-        if (options.systemInstruction) {
-            config.systemInstruction = options.systemInstruction;
-        }
+        // Custom system instructions
+        config.systemInstruction =
+            options.systemInstruction ||
+            "You are GemReact, a helpful AI assistant. Provide clear, accurate and friendly responses.";
 
         const response = await client.models.generateContent({
             model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
@@ -86,15 +113,18 @@ async function* generateMockStream(contents) {
 async function* generateGeminiStream(contents, options = {}) {
     const client = getAIClient();
 
+    // Advanced model configuration
     const config = {
         temperature: options.temperature ?? 0.7,
         topP: options.topP ?? 0.95,
+        topK: options.topK ?? 40,
         maxOutputTokens: options.maxOutputTokens ?? 2048,
     };
 
-    if (options.systemInstruction) {
-        config.systemInstruction = options.systemInstruction;
-    }
+    // Default system instruction
+    config.systemInstruction =
+        options.systemInstruction ||
+        "You are GemReact, a helpful AI assistant. Provide clear, accurate and friendly responses.";
 
     const response = await client.models.generateContentStream({
         model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
@@ -108,6 +138,8 @@ async function* generateGeminiStream(contents, options = {}) {
         }
     }
 }
+
+
 
 // Main streaming function
 async function* generateStream(contents, options = {}) {

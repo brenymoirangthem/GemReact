@@ -1,10 +1,181 @@
 import { createContext, useState, useEffect } from "react";
 
-const API_BASE_URL = "http://localhost:5000";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 export const Context = createContext();
 
 const ContextProvider = (props) => {
+
+    const uploadPDF = async (file) => {
+    if (!file) return;
+
+    if (file.type !== "application/pdf") {
+        alert("Please select a PDF file.");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("pdf", file);
+
+    setPdfUploading(true);
+
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/api/upload/pdf`,
+            {
+                method: "POST",
+                body: formData,
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "PDF upload failed.");
+        }
+
+        setSelectedDocument({
+            documentId: data.documentId,
+            name: file.name,
+            pages: data.pages,
+        });
+
+        alert("PDF uploaded and processed successfully!");
+
+    } catch (error) {
+        console.error("PDF upload error:", error);
+        alert(error.message);
+    } finally {
+        setPdfUploading(false);
+    }
+};
+// Remove selected image
+const clearSelectedImage = () => {
+    if (selectedImage?.previewUrl) {
+        URL.revokeObjectURL(selectedImage.previewUrl);
+    }
+
+    setSelectedImage(null);
+    setRecentPrompt("");
+    setResultData("");
+    setShowResult(false);
+    setInput("");
+};// Upload image
+const uploadImage = async (file) => {
+    if (!file) return;
+
+    const allowedTypes = [
+        "image/jpeg",
+        "image/png",
+        "image/webp"
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+        alert("Please select a JPG, PNG or WEBP image.");
+        return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+        alert("Image size cannot exceed 5 MB.");
+        return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+
+    setSelectedImage({
+        file,
+        name: file.name,
+        previewUrl
+    });
+
+    // An image and PDF cannot be attached simultaneously
+    setSelectedDocument(null);
+};
+const askPDF = async (question) => {
+    if (!selectedDocument || !question.trim() || loading) {
+        return;
+    }
+
+    setRecentPrompt(question);
+    setResultData("");
+    setShowResult(true);
+    setLoading(true);
+
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/api/chat/pdf`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    documentId: selectedDocument.documentId,
+                    question,
+                }),
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Unable to answer your question.");
+        }
+
+        setResultData(formatAnswer(data.answer));
+
+    } catch (error) {
+        console.error("PDF question error:", error);
+        setResultData(error.message);
+    } finally {
+        setLoading(false);
+        setInput("");
+    }
+};
+
+// Ask a question about the selected image
+const askImage = async (question) => {
+    if (!selectedImage || !question.trim() || loading) {
+        return;
+    }
+
+    setRecentPrompt(question);
+    setResultData("");
+    setShowResult(true);
+    setLoading(true);
+
+    try {
+        const formData = new FormData();
+
+        formData.append("image", selectedImage.file);
+        formData.append("question", question.trim());
+
+        const response = await fetch(
+            `${API_BASE_URL}/api/chat/image`,
+            {
+                method: "POST",
+                body: formData
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                data.error || "Unable to analyze the image."
+            );
+        }
+
+        setResultData(formatAnswer(data.answer));
+
+    } catch (error) {
+        console.error("Image analysis error:", error);
+        setResultData(error.message);
+    } finally {
+        setLoading(false);
+        setInput("");
+    }
+};
     const [prevPrompts, setPrevPrompts] = useState([]);
     const [recentPrompt, setRecentPrompt] = useState("");
     const [showResult, setShowResult] = useState(false);
@@ -12,7 +183,41 @@ const ContextProvider = (props) => {
     const [loading, setLoading] = useState(false);
     const [resultData, setResultData] = useState("");
     const [input, setInput] = useState("");
+    const [selectedDocument, setSelectedDocument] = useState(null);
+const [pdfUploading, setPdfUploading] = useState(false);
+// Image attachment state
+const [selectedImage, setSelectedImage] = useState(null);
+const [imageUploading, setImageUploading] = useState(false);
+// Remove the currently selected PDF
+const clearSelectedDocument = async () => {
+    if (!selectedDocument) return;
 
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/api/documents/${selectedDocument.documentId}`,
+            {
+                method: "DELETE",
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Unable to delete PDF.");
+        }
+
+        setSelectedDocument(null);
+        setRecentPrompt("");
+        setResultData("");
+        setShowResult(false);
+        setInput("");
+
+        alert("PDF deleted successfully!");
+    } catch (error) {
+        console.error("PDF deletion error:", error);
+        alert(error.message);
+    }
+};
     const [chatHistory, setChatHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [currentConversationId, setCurrentConversationId] = useState(null);
@@ -392,6 +597,16 @@ const ContextProvider = (props) => {
         currentConversationId,
         currentMessages,
         deleteConversation,
+        selectedDocument,
+        pdfUploading,
+        uploadPDF,
+        askPDF,
+        clearSelectedDocument,
+        selectedImage,
+        imageUploading,
+        uploadImage,
+        askImage,
+        clearSelectedImage,
     };
 
     return (
@@ -400,5 +615,7 @@ const ContextProvider = (props) => {
         </Context.Provider>
     );
 };
+
+// Remove the currently selected PDF
 
 export default ContextProvider;

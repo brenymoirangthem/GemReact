@@ -1,3 +1,4 @@
+const getDateTime = require("./datetime");
 const calculator = require("./calculator");
 
 // ==========================================
@@ -7,6 +8,10 @@ const calculator = require("./calculator");
 const tools = {
     calculator: (args) => {
         return calculator(args.expression);
+    },
+
+    datetime: (args) => {
+        return getDateTime(args.timeZone || "Asia/Kolkata");
     }
 };
 
@@ -15,7 +20,33 @@ const tools = {
 // ==========================================
 
 function detectToolCall(message) {
+    const lowerMessage = message.toLowerCase();
 
+    // DATE AND TIME DETECTION
+    const dateTimePatterns = [
+        /current date/,
+        /current time/,
+        /today'?s date/,
+        /what time is it/,
+        /what is the date/,
+        /date and time/,
+        /current date and time/
+    ];
+
+    const isDateTimeRequest = dateTimePatterns.some(
+        (pattern) => pattern.test(lowerMessage)
+    );
+
+    if (isDateTimeRequest) {
+        return {
+            toolName: "datetime",
+            args: {
+                timeZone: "Asia/Kolkata"
+            }
+        };
+    }
+
+    // CALCULATOR DETECTION
     const calculationPattern =
         /(?:calculate|compute|solve|what is)\s+(.+)/i;
 
@@ -25,24 +56,19 @@ function detectToolCall(message) {
         return null;
     }
 
-    // Normalize mathematical operators
     const expression = match[1]
         .replace(/×/g, "*")
         .replace(/÷/g, "/")
         .replace(/[?]/g, "")
         .trim();
 
-    // Check whether the expression contains only
-    // permitted mathematical characters
     if (!/^[0-9+\-*/().%\s]+$/.test(expression)) {
         return null;
     }
 
     return {
         toolName: "calculator",
-        args: {
-            expression
-        }
+        args: { expression }
     };
 }
 
