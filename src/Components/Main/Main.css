@@ -131,6 +131,33 @@
     flex-shrink: 0;
 }
 
+.search-box button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    color: inherit;
+    background: none;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.search-box button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.search-box button.listening {
+    border-radius: 50%;
+    background: #dce8f8;
+}
+
+.search-box button span {
+    font-size: 20px;
+    line-height: 1;
+}
+
 .search-box div {
     display: flex;
     align-items: center;

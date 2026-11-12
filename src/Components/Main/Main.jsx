@@ -1,4 +1,4 @@
-import React, { useContext, useRef } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import "./Main.css";
 import { assets } from "../../assets/assets";
 import { Context } from "../../Context/Context";
@@ -23,17 +23,116 @@ const Main = () => {
         uploadImage,
         askImage,
         clearSelectedImage,
+        transcribeAudio,
+        audioTranscribing,
     } = useContext(Context);
 
     // Reference to the hidden PDF input
     const imageInputRef = useRef(null);
     const fileInputRef = useRef(null);
+    const recorderRef = useRef(null);
+    const mountedRef = useRef(true);
+    const [isListening, setIsListening] = useState(false);
+
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+            const recorder = recorderRef.current;
+            if (recorder?.state === "recording") {
+                recorder.stop();
+            }
+            recorder?.stream.getTracks().forEach((track) => track.stop());
+        };
+    }, []);
+
+    const handleVoiceInput = async () => {
+        if (recorderRef.current?.state === "recording") {
+            recorderRef.current.stop();
+            return;
+        }
+
+        if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+            alert("Audio recording is not supported by this browser.");
+            return;
+        }
+
+        let stream;
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+            });
+            const supportedMimeType = [
+                "audio/webm;codecs=opus",
+                "audio/webm",
+                "audio/mp4",
+                "audio/ogg;codecs=opus",
+            ].find((mimeType) => MediaRecorder.isTypeSupported(mimeType));
+            const recorder = new MediaRecorder(
+                stream,
+                supportedMimeType ? { mimeType: supportedMimeType } : undefined
+            );
+            const chunks = [];
+
+            recorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    chunks.push(event.data);
+                }
+            };
+
+            recorder.onstop = async () => {
+                stream.getTracks().forEach((track) => track.stop());
+                recorderRef.current = null;
+                if (!mountedRef.current) return;
+                setIsListening(false);
+
+                const audio = new Blob(chunks, {
+                    type: recorder.mimeType || "audio/webm",
+                });
+                if (!audio.size) {
+                    alert("No audio was recorded. Please try again.");
+                    return;
+                }
+
+                try {
+                    const transcript = (await transcribeAudio(audio)).trim();
+                    if (!transcript) {
+                        throw new Error("No speech was detected. Please try again.");
+                    }
+                    setInput((current) =>
+                        `${current}${current && !current.endsWith(" ") ? " " : ""}${transcript}`
+                    );
+                } catch (error) {
+                    console.error("Audio transcription failed:", error);
+                    alert(error.message || "Unable to transcribe audio.");
+                }
+            };
+
+            recorder.onerror = (event) => {
+                stream.getTracks().forEach((track) => track.stop());
+                recorderRef.current = null;
+                if (!mountedRef.current) return;
+                setIsListening(false);
+                console.error("Audio recording failed:", event.error);
+                alert("Audio recording failed. Please check microphone permissions and try again.");
+            };
+
+            recorderRef.current = recorder;
+            recorder.start();
+            setIsListening(true);
+        } catch (error) {
+            stream?.getTracks().forEach((track) => track.stop());
+            console.error("Microphone access failed:", error);
+            alert("Could not access your microphone. Please allow microphone access and try again.");
+        }
+    };
+
     // Handle Enter key
     const handleKeyDown = (event) => {
         if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
 
-            if (input.trim() && !loading && !pdfUploading && !imageUploading) {
+            if (input.trim() && !loading && !pdfUploading && !imageUploading && !audioTranscribing && !isListening) {
                 if (selectedDocument) {
     askPDF(input);
 } else if (selectedImage) {
@@ -69,7 +168,7 @@ const handleImageUpload = (event) => {
 
     // Handle send button
     const handleSend = () => {
-        if (!input.trim() || loading || pdfUploading || imageUploading) return;
+        if (!input.trim() || loading || pdfUploading || imageUploading || audioTranscribing || isListening) return;
         if (selectedDocument) {
     askPDF(input);
 } else if (selectedImage) {
@@ -295,7 +394,7 @@ const handleImageUpload = (event) => {
         <button
             type="button"
             onClick={clearSelectedDocument}
-            disabled={loading || pdfUploading || imageUploading}
+            disabled={loading || pdfUploading || imageUploading || audioTranscribing || isListening}
             title="Remove PDF"
         >
             ✕
@@ -325,7 +424,7 @@ const handleImageUpload = (event) => {
         <button
             type="button"
             onClick={clearSelectedImage}
-            disabled={loading || imageUploading}
+            disabled={loading || imageUploading || audioTranscribing || isListening}
             title="Remove image"
         >
             ✕
@@ -336,6 +435,13 @@ const handleImageUpload = (event) => {
                 {pdfUploading && (
                     <p className="upload-status">
                         Processing PDF... Please wait.
+                    </p>
+                )}
+                {(isListening || audioTranscribing) && (
+                    <p className="upload-status" role="status">
+                        {isListening
+                            ? "Listening... Click the microphone when you are done."
+                            : "Transcribing audio..."}
                     </p>
                 )}
 
@@ -356,7 +462,7 @@ const handleImageUpload = (event) => {
                             setInput(event.target.value)
                         }
                         onKeyDown={handleKeyDown}
-                        disabled={loading || pdfUploading || imageUploading}
+                        disabled={loading || pdfUploading || imageUploading || audioTranscribing || isListening}
                     />
 
                     <div>
@@ -376,53 +482,51 @@ const handleImageUpload = (event) => {
     onChange={handleImageUpload}
     style={{ display: "none" }}
 />
-   {/* PDF upload button */}
-<button
-    type="button"
-    onClick={() => {
-        if (!loading && !pdfUploading) {
-            fileInputRef.current?.click();
-        }
-    }}
-    disabled={loading || pdfUploading || imageUploading}
-    title="Upload PDF"
-    style={{
-        background: "none",
-        border: "none",
-        padding: 0,
-        cursor: "pointer",
-        opacity: pdfUploading ? 0.5 : 1,
-    }}
->
-    <img
-        src={assets.gallery_icon}
-        alt="Upload PDF"
-    />
-</button>
+                        {/* PDF upload button */}
+                        <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={loading || pdfUploading || imageUploading || audioTranscribing || isListening}
+                            title="Upload PDF"
+                            aria-label="Upload PDF"
+                        >
+                            <img src={assets.gallery_icon} alt="" />
+                        </button>
 
-{/* Image upload button */}
-<button
-    type="button"
-    onClick={() => imageInputRef.current?.click()}
-    disabled={loading || pdfUploading || imageUploading}
-    title="Upload image"
->
-    🖼️
-</button>
+                        {/* Image upload button */}
+                        <button
+                            type="button"
+                            onClick={() => imageInputRef.current?.click()}
+                            disabled={loading || pdfUploading || imageUploading || audioTranscribing || isListening}
+                            title="Upload image"
+                            aria-label="Upload image"
+                        >
+                            <span aria-hidden="true">🖼️</span>
+                        </button>
                         {/* Microphone */}
-                        <img
-                            src={assets.mic_icon}
-                            alt="Microphone"
-                        />
+                        <button
+                            type="button"
+                            onClick={handleVoiceInput}
+                            disabled={loading || pdfUploading || imageUploading || audioTranscribing}
+                            title={isListening ? "Finish voice input" : "Start voice input"}
+                            aria-label={isListening ? "Finish voice input" : "Start voice input"}
+                            aria-pressed={isListening}
+                            className={isListening ? "listening" : ""}
+                        >
+                            <img src={assets.mic_icon} alt="" />
+                        </button>
 
                         {/* Send button */}
                         {input.trim() && (
-                            <img
+                            <button
+                                type="button"
                                 onClick={handleSend}
-                                src={assets.send_icon}
-                                alt="Send"
-                                style={{ cursor: "pointer" }}
-                            />
+                                disabled={loading || pdfUploading || imageUploading || audioTranscribing || isListening}
+                                title="Send message"
+                                aria-label="Send message"
+                            >
+                                <img src={assets.send_icon} alt="" />
+                            </button>
                         )}
 
                     </div>

@@ -160,7 +160,7 @@ Create `server/.env`:
 ```env
 PORT=5000
 MONGODB_URI=your_mongodb_connection_string
-MOCK_AI=true
+MOCK_AI=false
 GEMINI_API_KEY=your_gemini_api_key
 GEMINI_MODEL=gemini-2.5-flash
 ```
@@ -312,3 +312,4 @@ Redeploy the frontend after changing environment variables.
 **Breny Moirangthem**
 
 GitHub: https://github.com/brenymoirangthem
+a

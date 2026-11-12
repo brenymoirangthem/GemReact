@@ -176,6 +176,29 @@ const askImage = async (question) => {
         setInput("");
     }
 };
+
+const transcribeAudio = async (audio) => {
+    const formData = new FormData();
+    formData.append("audio", audio, "recording.webm");
+    setAudioTranscribing(true);
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/transcribe`, {
+            method: "POST",
+            body: formData,
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || "Unable to transcribe audio.");
+        }
+
+        return data.transcript;
+    } finally {
+        setAudioTranscribing(false);
+    }
+};
+
     const [prevPrompts, setPrevPrompts] = useState([]);
     const [recentPrompt, setRecentPrompt] = useState("");
     const [showResult, setShowResult] = useState(false);
@@ -188,6 +211,7 @@ const [pdfUploading, setPdfUploading] = useState(false);
 // Image attachment state
 const [selectedImage, setSelectedImage] = useState(null);
 const [imageUploading, setImageUploading] = useState(false);
+const [audioTranscribing, setAudioTranscribing] = useState(false);
 // Remove the currently selected PDF
 const clearSelectedDocument = async () => {
     if (!selectedDocument) return;
@@ -604,9 +628,11 @@ const clearSelectedDocument = async () => {
         clearSelectedDocument,
         selectedImage,
         imageUploading,
+        audioTranscribing,
         uploadImage,
         askImage,
         clearSelectedImage,
+        transcribeAudio,
     };
 
     return (
